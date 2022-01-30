@@ -1,0 +1,77 @@
+<script>
+  import { setClient, mutation } from '@urql/svelte';
+  import client from '../client';
+  import { goto } from '$app/navigation';
+  import Cookies from 'js-cookie';
+  import { userSession } from '../store';
+  setClient(client);
+
+  const loginMutation = mutation({
+    query: `
+      mutation ($email: String!, $password: String!) {
+        login(email: $email, password: $password) {
+          secret
+          ttl
+          data {
+            _id
+            email
+          }
+        }
+      } 
+    `
+  });
+
+   async function onSumbit(e) {
+    const formData = new FormData(e.target);
+    const data = {};
+    for(let field of formData) {
+      const [key, value] = field;
+      data[key] = value;
+    }
+    const {email, password} = data;
+    const resp = await loginMutation({email, password});
+    if (resp.data.login.data) {
+      Cookies.set('token',
+        JSON.stringify({
+          id: resp.data.login.data._id,
+          secret: resp.data.login.secret
+        }),
+        { expires: resp.data.login.data.ttl }
+      );
+      
+      userSession.update(() => ({
+        email,
+        id: resp.data.login.data._id,
+        secret: resp.data.login.secret
+      }));
+
+      alert("Login successful");
+      goto("/");
+    }
+  }
+</script>
+
+<div>
+  <h3>Login Form</h3>
+  <form on:submit|preventDefault={onSumbit} >
+    <div>
+      <label for="name">Email</label>
+      <input
+        type="text"
+        id="email"
+        name="email"
+        value=""
+      />
+    </div>
+    <div>
+      <label for="name">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        value=""
+      />
+    </div>
+    <button type="submit">Submit</button>
+  </form>
+</div>
